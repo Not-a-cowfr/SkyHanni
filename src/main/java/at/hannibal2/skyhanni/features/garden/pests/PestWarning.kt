@@ -2,16 +2,21 @@ package at.hannibal2.skyhanni.features.garden.pests
 
 import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.data.Perk
+import at.hannibal2.skyhanni.events.DebugDataCollectEvent
 import at.hannibal2.skyhanni.events.GuiRenderEvent
 import at.hannibal2.skyhanni.events.InventoryFullyOpenedEvent
 import at.hannibal2.skyhanni.events.LorenzChatEvent
+import at.hannibal2.skyhanni.events.LorenzTickEvent
 import at.hannibal2.skyhanni.events.SecondPassedEvent
 import at.hannibal2.skyhanni.events.garden.pests.PestSpawnEvent
+import at.hannibal2.skyhanni.events.minecraft.KeyPressEvent
 import at.hannibal2.skyhanni.features.garden.GardenAPI
 import at.hannibal2.skyhanni.features.garden.GardenPlotAPI
 import at.hannibal2.skyhanni.features.garden.GardenPlotAPI.isSprayExpired
+import at.hannibal2.skyhanni.features.inventory.wardrobe.WardrobeAPI
 import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
+import at.hannibal2.skyhanni.utils.HypixelCommands
 import at.hannibal2.skyhanni.utils.ItemUtils.getInternalName
 import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
@@ -22,6 +27,7 @@ import at.hannibal2.skyhanni.utils.SoundUtils.playSound
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import net.minecraft.item.ItemStack
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 @SkyHanniModule
@@ -30,10 +36,13 @@ object PestWarning {
 
     private const val BASE_PEST_COOLDOWN = 300.0
 
+    var repellentMultiplier: Int = 1
     private var sprayMultiplier: Double = 1.0
     private var cooldown: Double? = null
-    private var lastPestSpawnTime = SimpleTimeMark.farPast()
     private var warningShown = false
+
+    private var wardrobeOpened = false
+    private var lastOpened = SimpleTimeMark.farPast()
 
     private val storage get() = GardenAPI.storage
 
@@ -43,6 +52,7 @@ object PestWarning {
             storage?.equipmentPestCooldown = value
         }
 
+    // TODO : move to EquipmentAPI
     /**
      * REGEX-TEST: §aYou equipped a §r§5Rooted Pest Vest§r§a!
      * REGEX-TEST: §aYou equipped a §r§5Rooted Lotus Necklace§r§a!
@@ -74,22 +84,29 @@ object PestWarning {
 
     @SubscribeEvent
     fun onInventoryOpen(event: InventoryFullyOpenedEvent) {
-        if (event.inventoryName == "Your Equipment and Stats" && LorenzUtils.inSkyBlock) {
+        if (!LorenzUtils.inSkyBlock) return
+
+        if (event.inventoryName == "Your Equipment and Stats") {
             equipmentPestCooldown = checkEquipment(event.inventoryItems)
+        }
+
+        WardrobeAPI.inventoryPattern.matchMatcher(event.inventoryName) {
+            wardrobeOpened = true
         }
     }
 
     @SubscribeEvent
     fun onSecondPassed(event: SecondPassedEvent) {
         if (!isEnabled()) return
+
         sprayMultiplier = checkSpray()
-        cooldown = BASE_PEST_COOLDOWN * sprayMultiplier * (1 - equipmentPestCooldown.div(100.0))
+        cooldown = BASE_PEST_COOLDOWN * sprayMultiplier * (1 - equipmentPestCooldown.div(100.0)) * repellentMultiplier
     }
 
     @HandleEvent
     fun onPestSpawn(event: PestSpawnEvent) {
-        lastPestSpawnTime = SimpleTimeMark.now()
         warningShown = false
+        wardrobeOpened = false
     }
 
     private fun checkEquipment(equippedItems: Map<Int, ItemStack>): Int {
@@ -120,13 +137,63 @@ object PestWarning {
         if (cooldown == null) return
         if (warningShown) return
 
-        val timeSinceLastPest = lastPestSpawnTime.passedSince().inWholeSeconds
+        val timeSinceLastPest = PestSpawnTimer.lastSpawnTime.passedSince().inWholeSeconds
         val cooldownValue = cooldown ?: return
         if (timeSinceLastPest >= cooldownValue - config.pestSpawnWarningTime) {
-            SoundUtils.createSound("random.orb", 0.5f).playSound()
             LorenzUtils.sendTitle("§cPests Cooldown Expired!", duration = 3.seconds)
-            ChatUtils.chat("§cPests cooldown has expired")
+
+            ChatUtils.clickableChat(
+                "§cPest spawn cooldown has expired",
+                onClick = {
+                    HypixelCommands.wardrobe()
+                },
+                "§eClick to open your wardrobe!"
+            )
+
+            playUserSound()
+
             warningShown = true
+        }
+    }
+
+    @SubscribeEvent
+    fun onTick(event: LorenzTickEvent) {
+        if (!config.sound.repeatSound) return
+        if (!event.isMod(config.sound.repeatDuration)) return
+
+        if (!wardrobeOpened && warningShown) {
+            playUserSound()
+        }
+    }
+
+    @HandleEvent
+    fun onKeyPress(event: KeyPressEvent) {
+        if (!warningShown) return
+        if (lastOpened.passedSince() < 200.milliseconds) return
+
+        if (event.keyCode == config.keyBindWardrobe) {
+            HypixelCommands.wardrobe()
+            lastOpened = SimpleTimeMark.now()
+        }
+    }
+
+    @JvmStatic
+    fun playUserSound() {
+        with(config.sound) {
+            SoundUtils.createSound(name, pitch).playSound()
+        }
+    }
+
+    @HandleEvent
+    fun onDebug(event: DebugDataCollectEvent) {
+        event.title("Pest Warning")
+        event.addIrrelevant {
+            add("Repellent Multiplier: $repellentMultiplier")
+            add("Spray Multiplier: $sprayMultiplier")
+            add("Equipment Pest Cooldown: $equipmentPestCooldown")
+            add("Cooldown: ${cooldown ?: "Unknown"}")
+            add("Warning Shown: $warningShown")
+            add("Wardrobe Open: $wardrobeOpened")
         }
     }
 
