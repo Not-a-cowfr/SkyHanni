@@ -18,6 +18,8 @@ object SoundUtils {
     val plingSound by lazy { createSound("note.pling", 1f) }
     val centuryActiveTimerAlert by lazy { createSound("skyhanni:centurytimer.active", 1f) }
 
+    private var currentSound: ISound? = null
+
     fun ISound.playSound() {
         DelayedRun.onThread.execute {
             val gameSettings = Minecraft.getMinecraft().gameSettings
@@ -27,6 +29,7 @@ object SoundUtils {
             }
             try {
                 Minecraft.getMinecraft().soundHandler.playSound(this)
+                currentSound = this
             } catch (e: IllegalArgumentException) {
                 if (e.message?.startsWith("value already present:") == true) return@execute
                 ErrorManager.logErrorWithData(e, "Failed to play a sound", "soundLocation" to this.soundLocation)
@@ -51,6 +54,13 @@ object SoundUtils {
             }
         }
         return sound
+    }
+
+    fun stopCurrentSound() {
+        currentSound?.let {
+            Minecraft.getMinecraft().soundHandler.stopSound(it)
+            currentSound = null
+        }
     }
 
     fun playBeepSound() {

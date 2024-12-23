@@ -90,6 +90,7 @@ object PestWarning {
         WardrobeAPI.inventoryPattern.matchMatcher(event.inventoryName) {
             if (!warningShown) return
             wardrobeOpened = true
+            SoundUtils.stopCurrentSound()
         }
     }
 
@@ -103,6 +104,7 @@ object PestWarning {
     fun onPestSpawn(event: PestSpawnEvent) {
         warningShown = false
         wardrobeOpened = false
+        SoundUtils.stopCurrentSound()
     }
 
     private fun checkEquipment(equippedItems: Map<Int, ItemStack>): Int {
