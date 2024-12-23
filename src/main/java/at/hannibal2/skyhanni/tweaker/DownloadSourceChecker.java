@@ -51,7 +51,7 @@ public class DownloadSourceChecker {
         }
 
         JFrame frame = new JFrame();
-        frame.setUndecorated(true);`
+        frame.setUndecorated(true);
         frame.setAlwaysOnTop(true);
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
