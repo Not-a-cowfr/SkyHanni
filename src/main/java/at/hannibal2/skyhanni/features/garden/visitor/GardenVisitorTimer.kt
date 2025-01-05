@@ -2,7 +2,6 @@ package at.hannibal2.skyhanni.features.garden.visitor
 
 import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigUpdaterMigrator
-import at.hannibal2.skyhanni.config.commands.CommandRegistrationEvent
 import at.hannibal2.skyhanni.events.CropClickEvent
 import at.hannibal2.skyhanni.events.GuiRenderEvent
 import at.hannibal2.skyhanni.events.LorenzWorldChangeEvent
@@ -15,7 +14,6 @@ import at.hannibal2.skyhanni.features.garden.farming.GardenCropSpeed
 import at.hannibal2.skyhanni.features.misc.TpsCounter
 import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.test.command.ErrorManager
-import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.HypixelCommands
 import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.RegexUtils.firstMatcher
@@ -232,7 +230,7 @@ object GardenVisitorTimer {
     private fun updateSixthVisitorArrivalTime() {
         visitorInterval?.let {
             val tps = TpsCounter.tps ?: 20.0
-            sixthVisitorArrivalTime = SimpleTimeMark.now() + (it * tps / 20)
+            sixthVisitorArrivalTime = SimpleTimeMark.now() + (it * 20 / tps)
         }
     }
 
@@ -246,12 +244,5 @@ object GardenVisitorTimer {
         event.move(3, "garden.visitorTimerSixthVisitorEnabled", "garden.visitors.timer.sixthVisitorEnabled")
         event.move(3, "garden.visitorTimerSixthVisitorWarning", "garden.visitors.timer.sixthVisitorWarning")
         event.move(3, "garden.visitorTimerPos", "garden.visitors.timer.pos")
-    }
-
-    @HandleEvent
-    private fun onCommandRegister(event: CommandRegistrationEvent) {
-        event.register("6thvisitor") {
-            callback { ChatUtils.chat("§e6th Visitor ${sixthVisitorArrivalTime}") }
-        }
     }
 }
